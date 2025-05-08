@@ -54,25 +54,39 @@ export default function InsertNoteScreen() {
       Alert.alert('⚠️ Vui lòng nhập tiêu đề và nội dung');
       return;
     }
-
+  
     const newNote = {
       id: Date.now().toString(),
       title,
       content,
       imageUri,
       createdAt: new Date().toISOString(),
+      locked: false,
+      password: '',
     };
-
-    const existingNotes = await AsyncStorage.getItem('NOTES');
-    const notes = existingNotes ? JSON.parse(existingNotes) : [];
-    notes.push(newNote);
-
-    await AsyncStorage.setItem('NOTES', JSON.stringify(notes));
-    await saveNotesToFile(notes); // ✅ Ghi file thật sau khi lưu AsyncStorage
-
+  
+    // ✅ Đọc notes từ file thật thay vì AsyncStorage để không làm mất ghi chú bị khóa
+    const path = `${RNFS.DocumentDirectoryPath}/notes.json`;
+    let existingNotes: any[] = [];
+  
+    try {
+      const fileContent = await RNFS.readFile(path, 'utf8');
+      existingNotes = JSON.parse(fileContent);
+    } catch (err) {
+      console.log('📄 Chưa có file notes.json, sẽ tạo mới.');
+    }
+  
+    const updatedNotes = [...existingNotes, newNote];
+  
+    // ✅ Lưu lại vào cả AsyncStorage và file (tuỳ nhu cầu)
+    await AsyncStorage.setItem('NOTES', JSON.stringify(updatedNotes));
+    await saveNotesToFile(updatedNotes);
+  
     Alert.alert('✅ Ghi chú đã được lưu!');
     navigation.goBack();
   };
+  
+  
 
   const themedStyles = getThemedStyles(theme);
 

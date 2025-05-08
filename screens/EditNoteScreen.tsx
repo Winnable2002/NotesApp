@@ -1,15 +1,18 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, Button, StyleSheet, Alert, Image, TouchableOpacity, Modal, SafeAreaView } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import {
+  View, Text, TextInput, TouchableOpacity, Image,
+  Alert, Modal, StyleSheet, SafeAreaView
+} from 'react-native';
 import { useTheme } from '../ThemeContext';
+import RNFS from 'react-native-fs';
+
+const NOTES_FILE_PATH = `${RNFS.DocumentDirectoryPath}/notes.json`;
 
 const imageMap = {
   'Apple.jpg': require('../assets/images/Apple.jpg'),
   'Book.jpg': require('../assets/images/Book.jpg'),
   'Swimming.jpg': require('../assets/images/Swimming.jpg'),
 };
-
-const NOTES_KEY = 'NOTES';
 
 export default function EditNoteScreen({ route, navigation }: any) {
   const { note, index } = route.params;
@@ -20,39 +23,72 @@ export default function EditNoteScreen({ route, navigation }: any) {
   const { theme } = useTheme();
   const themedStyles = getThemedStyles(theme);
 
+  // Đọc ghi chú từ file
+  const readNotesFromFile = async () => {
+    try {
+      const exists = await RNFS.exists(NOTES_FILE_PATH);
+      if (exists) {
+        const content = await RNFS.readFile(NOTES_FILE_PATH, 'utf8');
+        return content ? JSON.parse(content) : [];
+      }
+      return [];
+    } catch (err) {
+      console.error('Lỗi đọc file:', err);
+      return [];
+    }
+  };
+
+  // Ghi chú vào file
+  const writeNotesToFile = async (notes: any[]) => {
+    try {
+      await RNFS.writeFile(NOTES_FILE_PATH, JSON.stringify(notes, null, 2), 'utf8');
+    } catch (err) {
+      console.error('Lỗi ghi file:', err);
+    }
+  };
+
   const handleUpdate = async () => {
     if (title.trim() === '' || content.trim() === '') {
       Alert.alert('Lỗi', 'Vui lòng nhập tiêu đề và nội dung');
       return;
     }
-
-    const json = await AsyncStorage.getItem(NOTES_KEY);
-    const notes = json ? JSON.parse(json) : [];
-
-    notes[index] = {
-      ...notes[index],
-      title,
-      content,
-      image: imageName, // Lưu ảnh mới hoặc không lưu nếu ảnh bị xóa
-      updatedAt: new Date().toLocaleString(),
-    };
-
-    await AsyncStorage.setItem(NOTES_KEY, JSON.stringify(notes));
-    Alert.alert('Đã cập nhật ghi chú thành công!');
-
-    setTimeout(() => {
-      navigation.goBack();
-    }, 1000);
+  
+    try {
+      const notes = await readNotesFromFile();
+  
+      if (index < 0 || index >= notes.length) {
+        Alert.alert('Lỗi', 'Không tìm thấy ghi chú để cập nhật');
+        return;
+      }
+  
+      notes[index] = {
+        ...notes[index],
+        title,
+        content,
+        image: imageName,
+        updatedAt: new Date().toLocaleString(),
+      };
+  
+      await writeNotesToFile(notes);
+  
+      Alert.alert('✅ Thành công', 'Ghi chú đã được cập nhật!');
+      setTimeout(() => {
+        // Truyền dữ liệu đã cập nhật qua navigation
+        navigation.goBack();
+      }, 1000);
+    } catch (error) {
+      console.error('❌ Lỗi cập nhật:', error);
+      Alert.alert('Lỗi', 'Không thể cập nhật ghi chú. Vui lòng thử lại.');
+    }
   };
+  
 
   const selectImage = (selectedName: keyof typeof imageMap) => {
-    setImageName(selectedName); // Chọn ảnh mới
-    setModalVisible(false); // Đóng modal
+    setImageName(selectedName);
+    setModalVisible(false);
   };
 
-  const deleteImage = () => {
-    setImageName(null); // Xóa ảnh hiện tại
-  };
+  const deleteImage = () => setImageName(null);
 
   return (
     <View style={themedStyles.container}>
@@ -73,27 +109,19 @@ export default function EditNoteScreen({ route, navigation }: any) {
         onChangeText={setContent}
       />
 
-      {/* Hiển thị ảnh nếu có */}
       {imageName && imageMap[imageName] && (
         <View style={themedStyles.imageContainer}>
-          <Image
-            source={imageMap[imageName]}
-            style={themedStyles.image}
-            resizeMode="cover"
-          />
-          {/* Nút xóa ảnh */}
+          <Image source={imageMap[imageName]} style={themedStyles.image} resizeMode="cover" />
           <TouchableOpacity onPress={deleteImage} style={themedStyles.deleteButton}>
             <Text style={themedStyles.deleteButtonText}>Xóa ảnh</Text>
           </TouchableOpacity>
         </View>
       )}
 
-      {/* Nút cập nhật */}
       <TouchableOpacity style={themedStyles.button} onPress={handleUpdate}>
         <Text style={themedStyles.buttonText}>Cập nhật</Text>
       </TouchableOpacity>
 
-      {/* Nút mở modal chọn ảnh */}
       <TouchableOpacity onPress={() => setModalVisible(true)} style={themedStyles.button}>
         <Text style={themedStyles.buttonText}>Chọn ảnh</Text>
       </TouchableOpacity>
@@ -102,26 +130,23 @@ export default function EditNoteScreen({ route, navigation }: any) {
       <Modal
         visible={modalVisible}
         animationType="slide"
-        transparent={true}
+        transparent
         onRequestClose={() => setModalVisible(false)}
       >
         <SafeAreaView style={styles.modalBackground}>
           <View style={styles.modalContainer}>
             <Text style={styles.modalTitle}>Chọn ảnh</Text>
-            {Object.keys(imageMap).map((img, index) => (
+            {Object.entries(imageMap).map(([name]) => (
               <TouchableOpacity
-                key={index}
-                onPress={() => selectImage(img as keyof typeof imageMap)} // Chọn ảnh mới
+                key={name}
+                onPress={() => selectImage(name as keyof typeof imageMap)}
                 style={styles.imageOption}
               >
-                <Text style={styles.imageOptionText}>{img}</Text>
+                <Text style={styles.imageOptionText}>{name}</Text>
               </TouchableOpacity>
             ))}
 
-            <TouchableOpacity
-              onPress={() => setModalVisible(false)}
-              style={styles.closeButton}
-            >
+            <TouchableOpacity onPress={() => setModalVisible(false)} style={styles.closeButton}>
               <Text style={styles.closeButtonText}>Đóng</Text>
             </TouchableOpacity>
           </View>
@@ -158,7 +183,7 @@ const getThemedStyles = (theme: 'light' | 'dark') =>
       backgroundColor: '#007bff',
       borderRadius: 8,
       alignItems: 'center',
-      marginTop: 20,
+      marginTop: 10,
     },
     buttonText: {
       color: '#fff',
@@ -176,10 +201,9 @@ const getThemedStyles = (theme: 'light' | 'dark') =>
     },
     deleteButton: {
       marginTop: 10,
-      backgroundColor: '#FF6347', // Màu đỏ
+      backgroundColor: '#FF6347',
       padding: 10,
       borderRadius: 8,
-      alignItems: 'center',
     },
     deleteButtonText: {
       color: '#fff',

@@ -19,7 +19,8 @@ export type RootStackParamList = {
     Edit: { note: string; index: number };
     Settings: undefined;
     LockNote: { note: Note; onLock: (lockedNote: Note) => void };
-    UnlockNote: { note: Note; index: number }; // Thêm UnlockNote vào đây
+    PasswordScreen: { note: Note }; // 👈 Thêm dòng này
+
   };
 
   

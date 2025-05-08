@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useLayoutEffect } from 'react';
+import React, { useEffect, useState, useLayoutEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -8,16 +8,16 @@ import {
   Alert,
   TouchableWithoutFeedback,
 } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useIsFocused, useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import RNFS from 'react-native-fs';
 
-const NOTES_KEY = 'NOTES';
-const ARCHIVE_KEY = 'ARCHIVE';
+const NOTES_KEY = 'notes.json';
+const ARCHIVE_KEY = 'archive.json';
 
 interface Note {
+  id: string;
   title: string;
   content: string;
   createdAt: string;
@@ -35,6 +35,7 @@ type RootStackParamList = {
   Archive: undefined;
   LockNote: { note: Note; onLock: (lockedNote: Note) => void };
   UnlockNote: { note: Note; index: number };
+  PasswordScreen: { note: Note; index: number; goToEdit?: boolean };
 };
 
 const formatDateTime = (isoString: string) => {
@@ -45,12 +46,121 @@ const formatDateTime = (isoString: string) => {
   })}`;
 };
 
-export default function HomeScreen() {
+const HomeScreen = () => {
   const [notes, setNotes] = useState<Note[]>([]);
   const [archivedNotes, setArchivedNotes] = useState<Note[]>([]);
+  const [unlockedNotes, setUnlockedNotes] = useState<string[]>([]);
   const [longPressIndex, setLongPressIndex] = useState<number | null>(null);
   const isFocused = useIsFocused();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList, 'Home'>>();
+
+  // Load notes from file
+  const loadNotes = useCallback(async () => {
+    try {
+      const path = `${RNFS.DocumentDirectoryPath}/${NOTES_KEY}`;
+      const fileExists = await RNFS.exists(path);
+      if (fileExists) {
+        const json = await RNFS.readFile(path, 'utf8');
+        const parsedNotes: Note[] = JSON.parse(json);
+        const activeNotes = parsedNotes.filter(note => !note.archived);
+        setNotes(activeNotes);
+      } else {
+        console.log('File notes.json không tồn tại');
+      }
+    } catch (err) {
+      console.error('Lỗi khi load NOTES:', err);
+    }
+  }, []);
+  
+
+  // Load archived notes from file
+  const loadArchivedNotes = useCallback(async () => {
+    try {
+      const path = `${RNFS.DocumentDirectoryPath}/${ARCHIVE_KEY}`;
+      const fileExists = await RNFS.exists(path);
+      if (fileExists) {
+        const json = await RNFS.readFile(path, 'utf8');
+        setArchivedNotes(JSON.parse(json));
+      } else {
+        console.log('File archive.json không tồn tại');
+      }
+    } catch (err) {
+      console.error('Lỗi khi load ARCHIVE:', err);
+    }
+  }, []);
+
+  // Save notes to file
+  const saveNotesToFile = async (notes: Note[]) => {
+    try {
+      const path = `${RNFS.DocumentDirectoryPath}/${NOTES_KEY}`;
+      const json = JSON.stringify(notes, null, 2);
+      await RNFS.writeFile(path, json, 'utf8');
+      console.log('✅ File notes.json đã được cập nhật tại:', path);
+    } catch (err) {
+      console.error('❌ Lỗi ghi file notes.json:', err);
+    }
+  };
+  
+
+  // Save archived notes to file
+  const saveArchivedNotesToFile = async (archivedNotes: Note[]) => {
+    try {
+      const path = `${RNFS.DocumentDirectoryPath}/${ARCHIVE_KEY}`;
+      const json = JSON.stringify(archivedNotes, null, 2);
+      await RNFS.writeFile(path, json, 'utf8');
+      console.log('✅ File archive.json đã được cập nhật tại:', path);
+    } catch (err) {
+      console.error('❌ Lỗi ghi file archive.json:', err);
+    }
+  };
+
+  // Handle delete note
+  const handleDeleteNote = async (index: number) => {
+    Alert.alert('Xác nhận xoá', 'Bạn có chắc muốn xoá ghi chú này?', [
+      { text: 'Huỷ', style: 'cancel' },
+      {
+        text: 'Xoá',
+        style: 'destructive',
+        onPress: async () => {
+          const updatedNotes = [...notes];
+          updatedNotes.splice(index, 1);
+          setNotes(updatedNotes);
+          await saveNotesToFile(updatedNotes);
+          loadNotes(); // Làm mới danh sách ghi chú
+        },
+      },
+    ]);
+  };
+
+  // Handle archive note
+  const handleArchiveNote = async (index: number) => {
+    Alert.alert('Lưu trữ ghi chú', 'Bạn có chắc chắn muốn lưu trữ ghi chú này?', [
+      { text: 'Huỷ', style: 'cancel' },
+      {
+        text: 'Lưu trữ',
+        onPress: async () => {
+          const updatedNotes = [...notes];
+          const noteToArchive = { ...updatedNotes[index] };
+          updatedNotes.splice(index, 1);
+          const updatedArchived = [...archivedNotes, noteToArchive];
+          setNotes(updatedNotes);
+          setArchivedNotes(updatedArchived);
+          await saveNotesToFile(updatedNotes);
+          await saveArchivedNotesToFile(updatedArchived); // Lưu trữ ghi chú vào archive
+          loadNotes(); // Làm mới danh sách ghi chú
+          loadArchivedNotes(); // Làm mới danh sách ghi chú đã lưu trữ
+        },
+      },
+    ]);
+  };
+
+  // Unlock note
+  const handleUnlock = (note: Note) => {
+    if (!unlockedNotes.includes(note.id)) {
+      setUnlockedNotes(prev => [...prev, note.id]);
+    }
+    navigation.navigate('Detail', { note });
+  };
 
   useLayoutEffect(() => {
     navigation.setOptions({
@@ -63,84 +173,12 @@ export default function HomeScreen() {
     });
   }, [navigation]);
 
-  const loadNotes = React.useCallback(async () => {
-    const json = await AsyncStorage.getItem(NOTES_KEY);
-    if (json) {
-      const parsedNotes: Note[] = JSON.parse(json);
-      setNotes(parsedNotes.filter(note => !note.archived));
-    }
-  }, []);
-
-  const loadArchivedNotes = React.useCallback(async () => {
-    const json = await AsyncStorage.getItem(ARCHIVE_KEY);
-    if (json) {
-      setArchivedNotes(JSON.parse(json));
-    }
-  }, []);
-
   useEffect(() => {
     if (isFocused) {
       loadNotes();
       loadArchivedNotes();
     }
   }, [isFocused, loadNotes, loadArchivedNotes]);
-
-  const saveNotesToFile = async (notesToSave: Note[]) => {
-    const path = `${RNFS.DocumentDirectoryPath}/notes.json`;
-    try {
-      const notesToSaveWithHiddenContent = notesToSave.map(note => {
-        if (note.locked) {
-          return { title: note.title, locked: true };
-        }
-        return note;
-      });
-
-      await RNFS.writeFile(path, JSON.stringify(notesToSaveWithHiddenContent, null, 2), 'utf8');
-    } catch (err) {
-      console.error('Lỗi khi ghi vào file:', err);
-    }
-  };
-
-  const handleDeleteNote = (index: number) => {
-    Alert.alert('Xác nhận xoá', 'Bạn có chắc muốn xoá ghi chú này?', [
-      { text: 'Huỷ', style: 'cancel' },
-      {
-        text: 'Xoá',
-        style: 'destructive',
-        onPress: async () => {
-          const updatedNotes = [...notes];
-          updatedNotes.splice(index, 1);
-          setNotes(updatedNotes);
-          await AsyncStorage.setItem(NOTES_KEY, JSON.stringify(updatedNotes));
-          await saveNotesToFile(updatedNotes);
-        },
-      },
-    ]);
-  };
-
-  const handleArchiveNote = (index: number) => {
-    Alert.alert('Lưu trữ ghi chú', 'Bạn có chắc chắn muốn lưu trữ ghi chú này?', [
-      { text: 'Huỷ', style: 'cancel' },
-      {
-        text: 'Lưu trữ',
-        onPress: async () => {
-          try {
-            const updatedNotes = [...notes];
-            const noteToArchive = { ...updatedNotes[index] };
-            updatedNotes.splice(index, 1);
-            const updatedArchived = [...archivedNotes, noteToArchive];
-            await AsyncStorage.setItem(NOTES_KEY, JSON.stringify(updatedNotes));
-            await AsyncStorage.setItem(ARCHIVE_KEY, JSON.stringify(updatedArchived));
-            setNotes(updatedNotes);
-            setArchivedNotes(updatedArchived);
-            await saveNotesToFile(updatedNotes);
-          } catch (error) {
-            Alert.alert('Lỗi', 'Không thể lưu trữ ghi chú.');
-          }
-        },
-      },
-    ]);
-  };
 
   const renderActions = (index: number, note: Note) => (
     <View style={styles.actionsContainer}>
@@ -151,11 +189,10 @@ export default function HomeScreen() {
             note,
             onLock: (lockedNote: Note) => {
               const updatedNotes = [...notes];
-              const noteIndex = updatedNotes.findIndex((n) => n === note);
+              const noteIndex = updatedNotes.findIndex(n => n.id === note.id);
               if (noteIndex !== -1) {
                 updatedNotes[noteIndex] = lockedNote;
                 setNotes(updatedNotes);
-                AsyncStorage.setItem(NOTES_KEY, JSON.stringify(updatedNotes));
                 saveNotesToFile(updatedNotes);
               }
             },
@@ -170,25 +207,8 @@ export default function HomeScreen() {
       <TouchableOpacity
         style={styles.iconButton}
         onPress={() => {
-          if (note.locked) {
-            Alert.prompt(
-              '🔒 Nhập mật khẩu',
-              'Bạn cần nhập mật khẩu để chỉnh sửa ghi chú này.',
-              [
-                { text: 'Huỷ', style: 'cancel' },
-                {
-                  text: 'Xác nhận',
-                  onPress: (inputPassword) => {
-                    if (inputPassword === note.password) {
-                      navigation.navigate('Edit', { note, index });
-                    } else {
-                      Alert.alert('Sai mật khẩu', 'Vui lòng thử lại.');
-                    }
-                  },
-                },
-              ],
-              'secure-text'
-            );
+          if (note.locked && !unlockedNotes.includes(note.id)) {
+            navigation.navigate('PasswordScreen', { note, index });
           } else {
             navigation.navigate('Edit', { note, index });
           }
@@ -202,87 +222,21 @@ export default function HomeScreen() {
     </View>
   );
 
-  const styles = StyleSheet.create({
-    container: {
-      flex: 1,
-      padding: 16,
-      backgroundColor: '#EEE8AA',
-    },
-    title: {
-      fontSize: 24,
-      fontWeight: 'bold',
-      textAlign: 'center',
-      marginBottom: 12,
-      color: '#000',
-    },
-    card: {
-      backgroundColor: '#FFDAB9',
-      padding: 16,
-      borderRadius: 10,
-      elevation: 2,
-      marginBottom: 12,
-    },
-    noteTitle: {
-      fontSize: 16,
-      fontWeight: 'bold',
-      color: '#000',
-    },
-    noteContent: {
-      fontSize: 14,
-      color: '#333',
-    },
-    dateText: {
-      fontSize: 12,
-      color: '#888',
-      marginTop: 6,
-    },
-    actionsContainer: {
-      flexDirection: 'row-reverse',
-      justifyContent: 'flex-start',
-      backgroundColor: '#FFF',
-      borderRadius: 8,
-      padding: 6,
-      marginTop: 10,
-      alignSelf: 'flex-end',
-      width: 'auto',
-    },
-    iconButton: {
-      marginHorizontal: 10,
-    },
-    addButton: {
-      position: 'absolute',
-      right: 20,
-      bottom: 30,
-      backgroundColor: '#007AFF',
-      width: 56,
-      height: 56,
-      borderRadius: 28,
-      alignItems: 'center',
-      justifyContent: 'center',
-      elevation: 4,
-    },
-    emptyText: {
-      textAlign: 'center',
-      color: '#888',
-      marginTop: 20,
-    },
-  });
-
   return (
     <TouchableWithoutFeedback onPress={() => setLongPressIndex(null)}>
       <View style={styles.container}>
         <Text style={styles.title}>📒 Danh sách ghi chú</Text>
         <FlatList
           data={notes}
-          keyExtractor={(_, index) => index.toString()}
+          keyExtractor={(item) => item.id}
           renderItem={({ item, index }) => (
             <TouchableOpacity
               style={styles.card}
               activeOpacity={0.6}
               onLongPress={() => setLongPressIndex(index)}
               onPress={() => {
-                if (item.locked) {
-                  navigation.navigate('UnlockNote', { note: item, index });
+                if (item.locked && !unlockedNotes.includes(item.id)) {
+                  navigation.navigate('PasswordScreen', { note: item, index });
                 } else {
                   navigation.navigate('Detail', { note: item });
                 }
@@ -290,26 +244,45 @@ export default function HomeScreen() {
             >
               <Text style={styles.noteTitle}>
                 {item.title}{' '}
-                {item.locked && (
-                  <Ionicons name="lock-closed-outline" size={14} color="red" />
-                )}
+                {item.locked && <Ionicons name="lock-closed-outline" size={14} color="red" />}
               </Text>
-
               <Text style={styles.noteContent} numberOfLines={2}>
-                {item.locked ? '🔒 Nội dung đã bị khóa' : item.content}
+                {item.locked && !unlockedNotes.includes(item.id)
+                  ? '🔒 Nội dung đã bị khóa'
+                  : item.content}
               </Text>
-
               <Text style={styles.dateText}>{formatDateTime(item.createdAt)}</Text>
-
               {longPressIndex === index && renderActions(index, item)}
             </TouchableOpacity>
           )}
           ListEmptyComponent={<Text style={styles.emptyText}>Chưa có ghi chú nào</Text>}
         />
         <TouchableOpacity style={styles.addButton} onPress={() => navigation.navigate('Insert')}>
-          <Ionicons name="add" size={28} color="#fff" />
+          <Ionicons name="add" size={30} color="#FF6600" />
         </TouchableOpacity>
       </View>
     </TouchableWithoutFeedback>
   );
-}
+};
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: '#fff', padding: 16 },
+  title: { fontSize: 24, fontWeight: 'bold', marginBottom: 16 },
+  card: { marginBottom: 10, padding: 10, backgroundColor: '#f9f9f9', borderRadius: 8, shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 4 },
+  noteTitle: { fontSize: 18, fontWeight: 'bold' },
+  noteContent: { fontSize: 14, marginTop: 8, color: '#555' },
+  dateText: { fontSize: 12, marginTop: 5, color: '#aaa' },
+  actionsContainer: { flexDirection: 'row', marginTop: 10 },
+  iconButton: { marginRight: 12 },
+  emptyText: { textAlign: 'center', color: '#aaa', fontSize: 18 },
+  addButton: {
+    position: 'absolute',
+    bottom: 30,
+    right: 30,
+    backgroundColor: '#EECFA1',
+    padding: 16,
+    borderRadius: 50,
+    elevation: 5,
+  },});
+
+export default HomeScreen;

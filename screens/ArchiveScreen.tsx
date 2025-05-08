@@ -3,12 +3,11 @@ import { View, Text, FlatList, TouchableOpacity, Alert, StyleSheet } from 'react
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import Ionicons from 'react-native-vector-icons/Ionicons';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import RNFS from 'react-native-fs';  // Thêm RNFS vào
 import { useTheme } from '../ThemeContext';
 import { RootStackParamList } from '../types';
 
-const ARCHIVE_KEY = 'ARCHIVE';
-const NOTES_KEY = 'NOTES';
+const ARCHIVE_FILE_PATH = `${RNFS.DocumentDirectoryPath}/archive.json`;
 
 interface Note {
   title: string;
@@ -31,10 +30,17 @@ export default function ArchiveScreen() {
   }, [navigation]);
 
   const loadArchivedNotes = async () => {
-    const json = await AsyncStorage.getItem(ARCHIVE_KEY);
-    if (json) {
-      const parsedArchivedNotes = JSON.parse(json);
-      setArchivedNotes(parsedArchivedNotes);
+    try {
+      const fileExists = await RNFS.exists(ARCHIVE_FILE_PATH);
+      if (fileExists) {
+        const fileContent = await RNFS.readFile(ARCHIVE_FILE_PATH, 'utf8');
+        const parsedArchivedNotes = JSON.parse(fileContent);
+        setArchivedNotes(parsedArchivedNotes);
+      } else {
+        console.log('File archive.json không tồn tại');
+      }
+    } catch (error) {
+      console.log('Lỗi khi đọc file archive.json:', error);
     }
   };
 
@@ -50,7 +56,7 @@ export default function ArchiveScreen() {
           onPress: async () => {
             const updatedArchivedNotes = [...archivedNotes];
             updatedArchivedNotes.splice(index, 1);
-            await AsyncStorage.setItem(ARCHIVE_KEY, JSON.stringify(updatedArchivedNotes));
+            await RNFS.writeFile(ARCHIVE_FILE_PATH, JSON.stringify(updatedArchivedNotes), 'utf8');
             setArchivedNotes(updatedArchivedNotes);
           },
         },
@@ -71,22 +77,14 @@ export default function ArchiveScreen() {
             const unarchivedNote = updatedArchivedNotes.splice(index, 1)[0];
             unarchivedNote.archived = false;
 
-            // Lấy danh sách notes hiện tại
-            const notesJson = await AsyncStorage.getItem(NOTES_KEY);
-            const existingNotes = notesJson ? JSON.parse(notesJson) : [];
-
-            // Thêm lại note đã bỏ lưu trữ vào danh sách chính
+            const notesJson = await RNFS.readFile(`${RNFS.DocumentDirectoryPath}/notes.json`, 'utf8');
+            const existingNotes = JSON.parse(notesJson || '[]');
             const updatedNotes = [...existingNotes, unarchivedNote];
 
-            // Lưu lại dữ liệu mới
-            await AsyncStorage.setItem(NOTES_KEY, JSON.stringify(updatedNotes));
-            await AsyncStorage.setItem(ARCHIVE_KEY, JSON.stringify(updatedArchivedNotes));
+            await RNFS.writeFile(`${RNFS.DocumentDirectoryPath}/notes.json`, JSON.stringify(updatedNotes), 'utf8');
+            await RNFS.writeFile(ARCHIVE_FILE_PATH, JSON.stringify(updatedArchivedNotes), 'utf8');
 
-            // Cập nhật lại state
             setArchivedNotes(updatedArchivedNotes);
-
-            // 👉 (Tuỳ chọn) Quay lại Home nếu muốn:
-            // navigation.navigate('Home');
           },
         },
       ]
