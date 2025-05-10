@@ -1,26 +1,24 @@
 // ThemeContext.tsx
 import React, { createContext, useState, useContext, ReactNode } from 'react';
 
-// Định nghĩa loại theme có thể có
+// Loại theme hỗ trợ: 'light' hoặc 'dark'
 type Theme = 'light' | 'dark';
 
-// Định nghĩa type cho context
+// Định nghĩa kiểu dữ liệu cho context
 interface ThemeContextType {
   theme: Theme;
   toggleTheme: () => void;
 }
 
-// Tạo context với giá trị mặc định
-const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
+// Tạo Context với giá trị khởi tạo undefined
+export const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
-// Provider để cung cấp theme cho toàn bộ ứng dụng
-export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  // Lưu trữ theme trong state
+// Provider bao bọc ứng dụng và cung cấp theme + hàm toggle
+export const ThemeProvider = ({ children }: { children: ReactNode }) => {
   const [theme, setTheme] = useState<Theme>('light');
 
-  // Hàm chuyển đổi theme
   const toggleTheme = () => {
-    setTheme((prevTheme) => (prevTheme === 'light' ? 'dark' : 'light'));
+    setTheme(prev => (prev === 'light' ? 'dark' : 'light'));
   };
 
   return (
@@ -30,7 +28,7 @@ export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   );
 };
 
-// Hook sử dụng context
+// Hook để sử dụng ThemeContext trong các component
 export const useTheme = (): ThemeContextType => {
   const context = useContext(ThemeContext);
   if (!context) {

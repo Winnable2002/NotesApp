@@ -114,7 +114,7 @@ export default function InsertNoteScreen() {
       />
 
       <TouchableOpacity style={themedStyles.imageButton} onPress={() => setModalVisible(true)}>
-        <Text style={themedStyles.imageButtonText}>🖼️ Chọn ảnh từ thư mục assets</Text>
+        <Text style={themedStyles.imageButtonText}>🖼️ Chọn ảnh </Text>
       </TouchableOpacity>
 
       {imageUri && (
@@ -162,7 +162,7 @@ const getThemedStyles = (theme: 'light' | 'dark') =>
     container: {
       flex: 1,
       padding: 20,
-      backgroundColor: theme === 'light' ? '#fff' : '#121212',
+      backgroundColor: theme === 'light' ? '#EEE8AA' : '#121212',
     },
     label: {
       fontSize: 16,

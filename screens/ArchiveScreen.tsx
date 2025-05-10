@@ -101,7 +101,8 @@ export default function ArchiveScreen() {
       fontSize: 24,
       fontWeight: 'bold',
       textAlign: 'center',
-      marginBottom: 12,
+      marginTop: 50,
+      marginBottom: 30,
       color: theme === 'light' ? '#000' : '#fff',
     },
     card: {
@@ -142,7 +143,14 @@ export default function ArchiveScreen() {
 
   return (
     <View style={themedStyles.container}>
-      <Text style={themedStyles.title}>📦 Ghi chú đã lưu trữ</Text>
+      <TouchableOpacity
+        style={{   marginTop: 50, marginLeft: 10}}
+        onPress={() => navigation.goBack()}
+      >
+        <Ionicons name="arrow-back" size={24} color={theme === 'light' ? '#000' : '#fff'} />
+      </TouchableOpacity>
+
+      <Text style={themedStyles.title}> Ghi chú đã lưu trữ</Text>
 
       {archivedNotes.length === 0 ? (
         <Text style={{ textAlign: 'center', color: theme === 'light' ? '#000' : '#fff' }}>
@@ -174,7 +182,7 @@ export default function ArchiveScreen() {
                     <Ionicons
                       name="archive-outline"
                       size={24}
-                      color="#FFD700"
+                      color={theme === 'light' ? '#48D1CC' : '#473C8B'}
                       style={{ transform: [{ rotate: '180deg' }] }}
                     />
                   </TouchableOpacity>

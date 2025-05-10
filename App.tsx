@@ -13,6 +13,7 @@ import { RootStackParamList } from './types';
 import LockNoteScreen from './screens/LockNoteScreen';
 import { NavigationContainer } from '@react-navigation/native';
 import PasswordScreen from './screens/PasswordScreen';
+import RegisterScreen from './screens/RegisterScreen';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -29,15 +30,16 @@ export default function App() {
     <ThemeProvider>
       <NavigationContainer>
         <Stack.Navigator initialRouteName="Login">
-          <Stack.Screen name="Login" component={LoginScreen} />
+          <Stack.Screen name="Login" component={LoginScreen} options={{ headerShown: false }}/>
+          <Stack.Screen name="Register" component={RegisterScreen} options={{ headerShown: false }}/>
           <Stack.Screen name="Home" component={HomeScreen} />
-          <Stack.Screen name="Detail" component={DetailNoteScreen} />
-          <Stack.Screen name="Archive" component={ArchiveScreen} options={{ title: 'Ghi chú đã lưu' }} />
+          <Stack.Screen name="Detail" component={DetailNoteScreen} options={{ title: 'Chi tiết' }}/>
+          <Stack.Screen name="Archive" component={ArchiveScreen} options={{ title: 'Ghi chú đã lưu',headerShown: false }} />
           <Stack.Screen name="Insert" component={InsertNoteScreen} options={{ title: 'Thêm ghi chú' }} />
           <Stack.Screen name="Edit" component={EditNoteScreen} />
-          <Stack.Screen name="Settings" component={SettingsScreen} />
+          <Stack.Screen name="Settings" component={SettingsScreen} options={{ title: 'Cài đặt' }} />
           <Stack.Screen name="LockNote" component={LockNoteScreen} options={{ title: 'Khóa ghi chú' }} />
-          <Stack.Screen name="PasswordScreen" component={PasswordScreen} />
+          <Stack.Screen name="PasswordScreen" component={PasswordScreen} options={{ title: 'Nhập mật khẩu', headerShown: false }}/>
         </Stack.Navigator>
       </NavigationContainer>
     </ThemeProvider>

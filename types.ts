@@ -7,7 +7,6 @@ export type Note = {
     content: string;
     createdAt: string;
     locked?: boolean;
-    
   };
 
 export type RootStackParamList = {
@@ -20,6 +19,7 @@ export type RootStackParamList = {
     Settings: undefined;
     LockNote: { note: Note; onLock: (lockedNote: Note) => void };
     PasswordScreen: { note: Note }; // 👈 Thêm dòng này
+    Register: undefined;
 
   };
 

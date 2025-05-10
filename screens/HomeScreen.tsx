@@ -1,4 +1,10 @@
-import React, { useEffect, useState, useLayoutEffect, useCallback } from 'react';
+import React, {
+  useEffect,
+  useState,
+  useLayoutEffect,
+  useCallback,
+  useContext,
+} from 'react';
 import {
   View,
   Text,
@@ -12,6 +18,7 @@ import { useIsFocused, useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import RNFS from 'react-native-fs';
+import { ThemeContext } from '../ThemeContext'; 
 
 const NOTES_KEY = 'notes.json';
 const ARCHIVE_KEY = 'archive.json';
@@ -35,7 +42,7 @@ type RootStackParamList = {
   Archive: undefined;
   LockNote: { note: Note; onLock: (lockedNote: Note) => void };
   UnlockNote: { note: Note; index: number };
-  PasswordScreen: { note: Note; index: number; goToEdit?: boolean };
+  PasswordScreen: { note: Note; index: number; goToEdit?: boolean; onUnlock?: (unlockedNote: Note) => void };
 };
 
 const formatDateTime = (isoString: string) => {
@@ -52,9 +59,14 @@ const HomeScreen = () => {
   const [unlockedNotes, setUnlockedNotes] = useState<string[]>([]);
   const [longPressIndex, setLongPressIndex] = useState<number | null>(null);
   const isFocused = useIsFocused();
-  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList, 'Home'>>();
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const themeContext = useContext(ThemeContext);
+  if (!themeContext) {
+    throw new Error('ThemeContext is undefined. Make sure you wrapped your app with ThemeProvider.');
+  }
+  const { theme } = themeContext;  
+  const styles = getThemedStyles(theme);
 
-  // Load notes from file
   const loadNotes = useCallback(async () => {
     try {
       const path = `${RNFS.DocumentDirectoryPath}/${NOTES_KEY}`;
@@ -64,16 +76,12 @@ const HomeScreen = () => {
         const parsedNotes: Note[] = JSON.parse(json);
         const activeNotes = parsedNotes.filter(note => !note.archived);
         setNotes(activeNotes);
-      } else {
-        console.log('File notes.json không tồn tại');
       }
     } catch (err) {
       console.error('Lỗi khi load NOTES:', err);
     }
   }, []);
-  
 
-  // Load archived notes from file
   const loadArchivedNotes = useCallback(async () => {
     try {
       const path = `${RNFS.DocumentDirectoryPath}/${ARCHIVE_KEY}`;
@@ -81,40 +89,32 @@ const HomeScreen = () => {
       if (fileExists) {
         const json = await RNFS.readFile(path, 'utf8');
         setArchivedNotes(JSON.parse(json));
-      } else {
-        console.log('File archive.json không tồn tại');
       }
     } catch (err) {
       console.error('Lỗi khi load ARCHIVE:', err);
     }
   }, []);
 
-  // Save notes to file
   const saveNotesToFile = async (notes: Note[]) => {
     try {
       const path = `${RNFS.DocumentDirectoryPath}/${NOTES_KEY}`;
       const json = JSON.stringify(notes, null, 2);
       await RNFS.writeFile(path, json, 'utf8');
-      console.log('✅ File notes.json đã được cập nhật tại:', path);
     } catch (err) {
-      console.error('❌ Lỗi ghi file notes.json:', err);
+      console.error('Lỗi ghi file notes.json:', err);
     }
   };
-  
 
-  // Save archived notes to file
   const saveArchivedNotesToFile = async (archivedNotes: Note[]) => {
     try {
       const path = `${RNFS.DocumentDirectoryPath}/${ARCHIVE_KEY}`;
       const json = JSON.stringify(archivedNotes, null, 2);
       await RNFS.writeFile(path, json, 'utf8');
-      console.log('✅ File archive.json đã được cập nhật tại:', path);
     } catch (err) {
-      console.error('❌ Lỗi ghi file archive.json:', err);
+      console.error('Lỗi ghi file archive.json:', err);
     }
   };
 
-  // Handle delete note
   const handleDeleteNote = async (index: number) => {
     Alert.alert('Xác nhận xoá', 'Bạn có chắc muốn xoá ghi chú này?', [
       { text: 'Huỷ', style: 'cancel' },
@@ -126,13 +126,12 @@ const HomeScreen = () => {
           updatedNotes.splice(index, 1);
           setNotes(updatedNotes);
           await saveNotesToFile(updatedNotes);
-          loadNotes(); // Làm mới danh sách ghi chú
+          loadNotes();
         },
       },
     ]);
   };
 
-  // Handle archive note
   const handleArchiveNote = async (index: number) => {
     Alert.alert('Lưu trữ ghi chú', 'Bạn có chắc chắn muốn lưu trữ ghi chú này?', [
       { text: 'Huỷ', style: 'cancel' },
@@ -146,32 +145,25 @@ const HomeScreen = () => {
           setNotes(updatedNotes);
           setArchivedNotes(updatedArchived);
           await saveNotesToFile(updatedNotes);
-          await saveArchivedNotesToFile(updatedArchived); // Lưu trữ ghi chú vào archive
-          loadNotes(); // Làm mới danh sách ghi chú
-          loadArchivedNotes(); // Làm mới danh sách ghi chú đã lưu trữ
+          await saveArchivedNotesToFile(updatedArchived);
+          loadNotes();
+          loadArchivedNotes();
         },
       },
     ]);
   };
 
-  // Unlock note
-  const handleUnlock = (note: Note) => {
-    if (!unlockedNotes.includes(note.id)) {
-      setUnlockedNotes(prev => [...prev, note.id]);
-    }
-    navigation.navigate('Detail', { note });
-  };
 
   useLayoutEffect(() => {
     navigation.setOptions({
       headerRight: () => (
         <TouchableOpacity onPress={() => navigation.navigate('Settings')} style={{ marginRight: 16 }}>
-          <Ionicons name="settings-outline" size={24} color="#8B4513" />
+          <Ionicons name="settings-outline" size={24} color={theme === 'light' ? '#8B795E' : '#x8B795E'} />
         </TouchableOpacity>
       ),
       title: 'Ghi chú',
     });
-  }, [navigation]);
+  }, [navigation, theme]);
 
   useEffect(() => {
     if (isFocused) {
@@ -183,39 +175,67 @@ const HomeScreen = () => {
   const renderActions = (index: number, note: Note) => (
     <View style={styles.actionsContainer}>
       <TouchableOpacity
-        style={styles.iconButton}
-        onPress={() =>
-          navigation.navigate('LockNote', {
-            note,
-            onLock: (lockedNote: Note) => {
-              const updatedNotes = [...notes];
-              const noteIndex = updatedNotes.findIndex(n => n.id === note.id);
-              if (noteIndex !== -1) {
-                updatedNotes[noteIndex] = lockedNote;
-                setNotes(updatedNotes);
-                saveNotesToFile(updatedNotes);
-              }
-            },
-          })
-        }
-      >
-        <Ionicons name="lock-closed-outline" size={24} color="#0000CD" />
-      </TouchableOpacity>
+  style={styles.iconButton}
+  onPress={() => {
+    if (note.locked) {
+      // Đã khóa: yêu cầu nhập mật khẩu để mở khóa
+      navigation.navigate('PasswordScreen', {
+        note,
+        index,
+        goToEdit: true,
+        onUnlock: (unlockedNote: Note) => {
+          const updatedNotes = [...notes];
+          const noteIndex = updatedNotes.findIndex(n => n.id === note.id);
+          if (noteIndex !== -1) {
+            updatedNotes[noteIndex] = unlockedNote;
+            setNotes(updatedNotes);
+            saveNotesToFile(updatedNotes);
+          }
+        },
+      });
+    } else {
+      // Chưa khóa: mở màn hình khóa
+      navigation.navigate('LockNote', {
+        note,
+        onLock: (lockedNote: Note) => {
+          const updatedNotes = [...notes];
+          const noteIndex = updatedNotes.findIndex(n => n.id === note.id);
+          if (noteIndex !== -1) {
+            updatedNotes[noteIndex] = lockedNote;
+            setNotes(updatedNotes);
+            saveNotesToFile(updatedNotes);
+          }
+        },
+      });
+    }
+  }}
+>
+  <Ionicons
+    name={note.locked ? 'lock-open-outline' : 'lock-closed-outline'}
+    size={24}
+    color={note.locked ? '#66CC00' : '#0000CD'} // xanh lá khi đã khóa
+  />
+</TouchableOpacity>
+
       <TouchableOpacity style={styles.iconButton} onPress={() => handleArchiveNote(index)}>
-        <Ionicons name="archive-outline" size={24} color="#FFD700" />
+        <Ionicons name="archive-outline" size={24} color={theme === 'light' ? '#48D1CC' : '#473C8B'} />
       </TouchableOpacity>
       <TouchableOpacity
-        style={styles.iconButton}
-        onPress={() => {
-          if (note.locked && !unlockedNotes.includes(note.id)) {
-            navigation.navigate('PasswordScreen', { note, index });
-          } else {
-            navigation.navigate('Edit', { note, index });
-          }
-        }}
-      >
-        <Ionicons name="create-outline" size={24} color="#FF9900" />
-      </TouchableOpacity>
+          style={styles.iconButton}
+          onPress={() => {
+            if (note.locked && !unlockedNotes.includes(note.id)) {
+              navigation.navigate('PasswordScreen', {
+                note,
+                index,
+                goToEdit: true, // <-- CHUYỂN SANG EDIT nếu nhập đúng mật khẩu
+              });
+            } else {
+              navigation.navigate('Edit', { note, index });
+            }
+          }}
+        >
+          <Ionicons name="create-outline" size={24} color="#FF9900" />
+        </TouchableOpacity>
       <TouchableOpacity style={styles.iconButton} onPress={() => handleDeleteNote(index)}>
         <Ionicons name="trash-outline" size={24} color="red" />
       </TouchableOpacity>
@@ -248,7 +268,7 @@ const HomeScreen = () => {
               </Text>
               <Text style={styles.noteContent} numberOfLines={2}>
                 {item.locked && !unlockedNotes.includes(item.id)
-                  ? '🔒 Nội dung đã bị khóa'
+                  ? '🔒'
                   : item.content}
               </Text>
               <Text style={styles.dateText}>{formatDateTime(item.createdAt)}</Text>
@@ -258,31 +278,78 @@ const HomeScreen = () => {
           ListEmptyComponent={<Text style={styles.emptyText}>Chưa có ghi chú nào</Text>}
         />
         <TouchableOpacity style={styles.addButton} onPress={() => navigation.navigate('Insert')}>
-          <Ionicons name="add" size={30} color="#FF6600" />
+          <Ionicons name="add" size={30} color={theme === 'light' ? '#FF6600' : '#fff'} />
         </TouchableOpacity>
       </View>
     </TouchableWithoutFeedback>
   );
 };
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#fff', padding: 16 },
-  title: { fontSize: 24, fontWeight: 'bold', marginBottom: 16 },
-  card: { marginBottom: 10, padding: 10, backgroundColor: '#f9f9f9', borderRadius: 8, shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 4 },
-  noteTitle: { fontSize: 18, fontWeight: 'bold' },
-  noteContent: { fontSize: 14, marginTop: 8, color: '#555' },
-  dateText: { fontSize: 12, marginTop: 5, color: '#aaa' },
-  actionsContainer: { flexDirection: 'row', marginTop: 10 },
-  iconButton: { marginRight: 12 },
-  emptyText: { textAlign: 'center', color: '#aaa', fontSize: 18 },
-  addButton: {
-    position: 'absolute',
-    bottom: 30,
-    right: 30,
-    backgroundColor: '#EECFA1',
-    padding: 16,
-    borderRadius: 50,
-    elevation: 5,
-  },});
+const getThemedStyles = (theme: 'light' | 'dark') =>
+  StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: theme === 'light' ? '#EEE8AA' : '#121212',
+      padding: 16,
+    },
+    title: {
+      textAlign: 'center',
+      fontSize: 24,
+      fontWeight: 'bold',
+      marginBottom: 16,
+      color: theme === 'light' ? '#000' : '#fff',
+    },
+    card: {
+      marginBottom: 10,
+      padding: 10,
+      backgroundColor: theme === 'light' ? '#EECFA1' : '#008B8B',
+      borderRadius: 8,
+      shadowColor: '#000',
+      shadowOpacity: 0.1,
+      shadowRadius: 4,
+    },
+    noteTitle: {
+      textAlign: 'center',
+      fontSize: 18,
+      fontWeight: 'bold',
+      color: theme === 'light' ? '#000' : '#fff',
+    },
+    noteContent: {
+      fontSize: 14,
+      marginTop: 8,
+      color: theme === 'light' ? '#555' : '#ccc',
+      textAlign: 'left',
+    },
+    dateText: {
+      paddingLeft:235,
+      fontSize: 12,
+      marginTop: 5,
+      color: theme === 'light' ? '#000' : '#999',
+    },
+    actionsContainer: {
+      flexDirection: 'row',
+      marginTop: 10,
+    },
+    iconButton: {
+      marginLeft: 30,
+      paddingHorizontal: 10,
+      borderRadius: 50,
+      
+    },
+    emptyText: {
+      textAlign: 'center',
+      color: '#aaa',
+      fontSize: 18,
+    },
+    addButton: {
+      position: 'absolute',
+      bottom: 30,
+      right: 30,
+      backgroundColor: theme === 'light' ? '#EECFA1' : '#008B8B',
+      padding: 16,
+      borderRadius: 50,
+      elevation: 5,
+    },
+  });
 
 export default HomeScreen;

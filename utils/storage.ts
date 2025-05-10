@@ -8,7 +8,7 @@ export const initUser = async () => {
   const exists = await RNFS.exists(USER_FILE);
   if (!exists) {
     const sampleUser = {
-      username: 'admin',
+      username: 'quocbinh',
       password: '123456',
     };
     await RNFS.writeFile(USER_FILE, JSON.stringify(sampleUser), 'utf8');
@@ -53,4 +53,4 @@ export const saveNotesToFile = async (notes: Note[]) => {
   } catch (error) {
     console.error('Failed to save notes:', error);
   }
-};
+}

@@ -12,7 +12,12 @@ import { Note } from '../types';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 
 type RootStackParamList = {
-  PasswordScreen: { note: Note; index: number; goToEdit?: boolean };
+  PasswordScreen: {
+    note: Note;
+    index: number;
+    goToEdit?: boolean;
+    onUnlock?: (unlockedNote: Note) => void;
+  };
   Edit: { note: Note; index: number };
   Detail: { note: Note };
 };
@@ -20,37 +25,35 @@ type RootStackParamList = {
 type Props = NativeStackScreenProps<RootStackParamList, 'PasswordScreen'>;
 
 const PasswordScreen = ({ route, navigation }: Props) => {
-  const { note, index, goToEdit } = route.params;
+  const { note, index, goToEdit, onUnlock } = route.params; // ✅ destructuring đúng
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
   const handleUnlock = () => {
     Keyboard.dismiss();
-  
-    // Kiểm tra mật khẩu không rỗng
+
     if (!password.trim()) {
       Alert.alert('Lỗi', 'Vui lòng nhập mật khẩu.');
       return;
     }
-  
+
     setIsLoading(true);
-  
+
     setTimeout(() => {
-      // Kiểm tra mật khẩu
       if (password === note.password) {
-        // Nếu goToEdit là true, chuyển đến màn hình Edit
+        onUnlock?.({ ...note, locked: false }); // ✅ gọi callback nếu có
+
         if (goToEdit) {
           navigation.replace('Edit', { note, index });
         } else {
-          // Nếu goToEdit là false, chuyển đến màn hình Detail
           navigation.replace('Detail', { note });
         }
       } else {
         Alert.alert('Sai mật khẩu', 'Vui lòng thử lại.');
       }
-  
+
       setIsLoading(false);
-    }, 500); // delay nhỏ để UX tự nhiên
+    }, 500);
   };
 
   return (
@@ -64,7 +67,11 @@ const PasswordScreen = ({ route, navigation }: Props) => {
         onChangeText={setPassword}
         editable={!isLoading}
       />
-      <Button title={isLoading ? 'Đang mở...' : 'Mở'} onPress={handleUnlock} disabled={isLoading} />
+      <Button
+        title={isLoading ? 'Đang mở...' : 'Mở'}
+        onPress={handleUnlock}
+        disabled={isLoading}
+      />
     </View>
   );
 };

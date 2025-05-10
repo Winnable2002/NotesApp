@@ -20,15 +20,15 @@ type DetailNoteScreenProps = {
   };
 };
 
-const NOTES_FILE_PATH = RNFS.DocumentDirectoryPath + '/notes.json'; // Đường dẫn tới tệp ghi chú
+const NOTES_FILE_PATH = RNFS.DocumentDirectoryPath + '/notes.json'; 
 
 export default function DetailNoteScreen({ route }: DetailNoteScreenProps) {
-  const { note, index } = route.params; // Nhận note và index từ route
+  const { note, index } = route.params; 
   const [updatedNote, setUpdatedNote] = useState<Note | null>(null); // State để lưu ghi chú đã tải
-  const [password, setPassword] = useState(''); // State để lưu mật khẩu người dùng nhập
-  const [isLocked, setIsLocked] = useState(false); // Kiểm tra xem ghi chú có bị khóa không
-  const { theme } = useTheme(); // Dùng theme từ context
-  const themedStyles = getThemedStyles(theme); // Lấy các style theo theme
+  const [password, setPassword] = useState(''); 
+  const [isLocked, setIsLocked] = useState(false); 
+  const { theme } = useTheme(); 
+  const themedStyles = getThemedStyles(theme); 
 
   useEffect(() => {
     const fetchNote = async () => {
@@ -41,7 +41,7 @@ export default function DetailNoteScreen({ route }: DetailNoteScreenProps) {
           if (updated) {
             setUpdatedNote(updated); // Nếu tìm thấy, lưu vào state
             if (updated.password) {
-              setIsLocked(true); // Nếu có mật khẩu, ghi chú bị khóa
+              setIsLocked(true); 
             }
           } else {
             setUpdatedNote(note); // Nếu không tìm thấy, dùng ghi chú từ props
