@@ -13,12 +13,15 @@ import {
   TouchableOpacity,
   Alert,
   TouchableWithoutFeedback,
+  TextInput,
 } from 'react-native';
 import { useIsFocused, useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import RNFS from 'react-native-fs';
-import { ThemeContext } from '../ThemeContext'; 
+import { ThemeContext } from '../ThemeContext';
+import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
+
 
 const NOTES_KEY = 'notes.json';
 const ARCHIVE_KEY = 'archive.json';
@@ -58,13 +61,15 @@ const HomeScreen = () => {
   const [archivedNotes, setArchivedNotes] = useState<Note[]>([]);
   const [unlockedNotes, setUnlockedNotes] = useState<string[]>([]);
   const [longPressIndex, setLongPressIndex] = useState<number | null>(null);
+  const [viewMode, setViewMode] = useState<'grid' | 'large'>('grid');
+  const [searchQuery, setSearchQuery] = useState('');
   const isFocused = useIsFocused();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const themeContext = useContext(ThemeContext);
   if (!themeContext) {
     throw new Error('ThemeContext is undefined. Make sure you wrapped your app with ThemeProvider.');
   }
-  const { theme } = themeContext;  
+  const { theme } = themeContext;
   const styles = getThemedStyles(theme);
 
   const loadNotes = useCallback(async () => {
@@ -153,15 +158,41 @@ const HomeScreen = () => {
     ]);
   };
 
-
   useLayoutEffect(() => {
     navigation.setOptions({
       headerRight: () => (
-        <TouchableOpacity onPress={() => navigation.navigate('Settings')} style={{ marginRight: 16 }}>
-          <Ionicons name="settings-outline" size={24} color={theme === 'light' ? '#8B795E' : '#x8B795E'} />
-        </TouchableOpacity>
+        <View style={{ flexDirection: 'row', paddingRight: 12 }}>
+          <TouchableOpacity
+            onPress={() => {
+              setViewMode(prev => {
+                const newMode = prev === 'grid' ? 'large' : 'grid';
+                loadNotes(); // gọi loadNotes sau khi đổi chế độ xem
+                return newMode;
+              });
+            }}
+            style={{ paddingHorizontal: 8 }}
+          >
+            <MaterialIcons
+              name={viewMode === 'grid' ? 'view-list' : 'view-module'}
+              size={24}
+              color={theme === 'light' ? '#8B795E' : '#8B795E'}
+            />
+          </TouchableOpacity>
+
+      
+          <TouchableOpacity
+            onPress={() => navigation.navigate('Settings')}
+            style={{ paddingHorizontal: 8 }}
+          >
+            <MaterialIcons
+              name="settings"
+              size={24}
+              color={theme === 'light' ? '#8B795E' : '#8B795E'}
+            />
+          </TouchableOpacity>
+        </View>
       ),
-      title: 'Ghi chú',
+      title: '📒 Danh sách ghi chú',
     });
   }, [navigation, theme]);
 
@@ -172,70 +203,59 @@ const HomeScreen = () => {
     }
   }, [isFocused, loadNotes, loadArchivedNotes]);
 
+  const filteredNotes = notes.filter(note =>
+    note.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    note.content.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
   const renderActions = (index: number, note: Note) => (
     <View style={styles.actionsContainer}>
-      <TouchableOpacity
-  style={styles.iconButton}
-  onPress={() => {
-    if (note.locked) {
-      // Đã khóa: yêu cầu nhập mật khẩu để mở khóa
-      navigation.navigate('PasswordScreen', {
-        note,
-        index,
-        goToEdit: true,
-        onUnlock: (unlockedNote: Note) => {
-          const updatedNotes = [...notes];
-          const noteIndex = updatedNotes.findIndex(n => n.id === note.id);
-          if (noteIndex !== -1) {
-            updatedNotes[noteIndex] = unlockedNote;
-            setNotes(updatedNotes);
-            saveNotesToFile(updatedNotes);
-          }
-        },
-      });
-    } else {
-      // Chưa khóa: mở màn hình khóa
-      navigation.navigate('LockNote', {
-        note,
-        onLock: (lockedNote: Note) => {
-          const updatedNotes = [...notes];
-          const noteIndex = updatedNotes.findIndex(n => n.id === note.id);
-          if (noteIndex !== -1) {
-            updatedNotes[noteIndex] = lockedNote;
-            setNotes(updatedNotes);
-            saveNotesToFile(updatedNotes);
-          }
-        },
-      });
-    }
-  }}
->
-  <Ionicons
-    name={note.locked ? 'lock-open-outline' : 'lock-closed-outline'}
-    size={24}
-    color={note.locked ? '#66CC00' : '#0000CD'} // xanh lá khi đã khóa
-  />
-</TouchableOpacity>
+      <TouchableOpacity style={styles.iconButton} onPress={() => {
+        if (note.locked) {
+          navigation.navigate('PasswordScreen', {
+            note,
+            index,
+            goToEdit: true,
+            onUnlock: (unlockedNote: Note) => {
+              const updatedNotes = [...notes];
+              const noteIndex = updatedNotes.findIndex(n => n.id === note.id);
+              if (noteIndex !== -1) {
+                updatedNotes[noteIndex] = unlockedNote;
+                setNotes(updatedNotes);
+                saveNotesToFile(updatedNotes);
+              }
+            },
+          });
+        } else {
+          navigation.navigate('LockNote', {
+            note,
+            onLock: (lockedNote: Note) => {
+              const updatedNotes = [...notes];
+              const noteIndex = updatedNotes.findIndex(n => n.id === note.id);
+              if (noteIndex !== -1) {
+                updatedNotes[noteIndex] = lockedNote;
+                setNotes(updatedNotes);
+                saveNotesToFile(updatedNotes);
+              }
+            },
+          });
+        }
+      }}>
+        <Ionicons name={note.locked ? 'lock-open-outline' : 'lock-closed-outline'} size={24} color={note.locked ? '#66CC00' : '#0000CD'} />
+      </TouchableOpacity>
 
       <TouchableOpacity style={styles.iconButton} onPress={() => handleArchiveNote(index)}>
         <Ionicons name="archive-outline" size={24} color={theme === 'light' ? '#48D1CC' : '#473C8B'} />
       </TouchableOpacity>
-      <TouchableOpacity
-          style={styles.iconButton}
-          onPress={() => {
-            if (note.locked && !unlockedNotes.includes(note.id)) {
-              navigation.navigate('PasswordScreen', {
-                note,
-                index,
-                goToEdit: true, // <-- CHUYỂN SANG EDIT nếu nhập đúng mật khẩu
-              });
-            } else {
-              navigation.navigate('Edit', { note, index });
-            }
-          }}
-        >
-          <Ionicons name="create-outline" size={24} color="#FF9900" />
-        </TouchableOpacity>
+      <TouchableOpacity style={styles.iconButton} onPress={() => {
+        if (note.locked && !unlockedNotes.includes(note.id)) {
+          navigation.navigate('PasswordScreen', { note, index, goToEdit: true });
+        } else {
+          navigation.navigate('Edit', { note, index });
+        }
+      }}>
+        <Ionicons name="create-outline" size={24} color="#FF9900" />
+      </TouchableOpacity>
       <TouchableOpacity style={styles.iconButton} onPress={() => handleDeleteNote(index)}>
         <Ionicons name="trash-outline" size={24} color="red" />
       </TouchableOpacity>
@@ -245,38 +265,56 @@ const HomeScreen = () => {
   return (
     <TouchableWithoutFeedback onPress={() => setLongPressIndex(null)}>
       <View style={styles.container}>
-        <Text style={styles.title}>📒 Danh sách ghi chú</Text>
-        <FlatList
-          data={notes}
-          keyExtractor={(item) => item.id}
-          renderItem={({ item, index }) => (
-            <TouchableOpacity
-              style={styles.card}
-              activeOpacity={0.6}
-              onLongPress={() => setLongPressIndex(index)}
-              onPress={() => {
-                if (item.locked && !unlockedNotes.includes(item.id)) {
-                  navigation.navigate('PasswordScreen', { note: item, index });
-                } else {
-                  navigation.navigate('Detail', { note: item });
-                }
-              }}
-            >
-              <Text style={styles.noteTitle}>
-                {item.title}{' '}
-                {item.locked && <Ionicons name="lock-closed-outline" size={14} color="red" />}
-              </Text>
-              <Text style={styles.noteContent} numberOfLines={2}>
-                {item.locked && !unlockedNotes.includes(item.id)
-                  ? '🔒'
-                  : item.content}
-              </Text>
-              <Text style={styles.dateText}>{formatDateTime(item.createdAt)}</Text>
-              {longPressIndex === index && renderActions(index, item)}
-            </TouchableOpacity>
-          )}
-          ListEmptyComponent={<Text style={styles.emptyText}>Chưa có ghi chú nào</Text>}
+        <Text style={styles.title}>
+          
+          </Text>
+        <View style={styles.SearchContainer}>
+        <Ionicons name="search-outline" size={24} color="#999" />
+        {/* 🔍 Thanh tìm kiếm */}
+        <TextInput
+          style={styles.searchInput}
+          placeholder="Tìm ghi chú..."
+          placeholderTextColor={theme === 'light' ? '#999' : '#ccc'}
+          value={searchQuery}
+          onChangeText={setSearchQuery}
         />
+        </View>
+
+        <FlatList
+            data={filteredNotes}
+            key={viewMode} // để force FlatList render lại khi thay đổi số cột
+            numColumns={viewMode === 'grid' ? 2 : 1}
+            keyExtractor={(item) => item.id}
+            renderItem={({ item, index }) => (
+              <TouchableOpacity
+                style={[
+                  styles.card,
+                  viewMode === 'grid' ? styles.gridItem : styles.largeItem,
+                ]}
+                activeOpacity={0.6}
+                onLongPress={() => setLongPressIndex(index)}
+                onPress={() => {
+                  if (item.locked && !unlockedNotes.includes(item.id)) {
+                    navigation.navigate('PasswordScreen', { note: item, index });
+                  } else {
+                    navigation.navigate('Detail', { note: item });
+                  }
+                }}
+              >
+                <Text style={styles.noteTitle}>
+                  {item.title}{' '}
+                  {item.locked && <Ionicons name="lock-closed-outline" size={14} color="red" />}
+                </Text>
+                <Text style={styles.noteContent} numberOfLines={2}>
+                  {item.locked && !unlockedNotes.includes(item.id) ? '🔒' : item.content}
+                </Text>
+                <Text style={styles.dateText}>{formatDateTime(item.createdAt)}</Text>
+                {longPressIndex === index && renderActions(index, item)}
+              </TouchableOpacity>
+            )}
+            ListEmptyComponent={<Text style={styles.emptyText}>Chưa có ghi chú nào</Text>}
+          />
+
         <TouchableOpacity style={styles.addButton} onPress={() => navigation.navigate('Insert')}>
           <Ionicons name="add" size={30} color={theme === 'light' ? '#FF6600' : '#fff'} />
         </TouchableOpacity>
@@ -299,14 +337,31 @@ const getThemedStyles = (theme: 'light' | 'dark') =>
       marginBottom: 16,
       color: theme === 'light' ? '#000' : '#fff',
     },
+
+    gridItem: {
+      flex: 1,
+      margin: 4,         // giảm margin
+      minWidth: 0,       // giữ nguyên để tự căn lề
+      maxWidth: '47%',
+      maxHeight: 150,   // nếu bạn chia 2 cột thì giới hạn max width là ~50%
+    },
+    largeItem: {
+      width: '100%',
+    },
+
+    searchInput: {
+      flex: 1,
+      marginRight: 30,
+      fontSize: 16,
+      color: theme === 'light' ? '#000' : '#fff',
+    },
     card: {
       marginBottom: 10,
       padding: 10,
       backgroundColor: theme === 'light' ? '#EECFA1' : '#008B8B',
+      borderColor: theme === 'light' ? '#CD853F' : '#8B795E', // viền nâu & xanh ngọc
+      borderWidth: 2,
       borderRadius: 8,
-      shadowColor: '#000',
-      shadowOpacity: 0.1,
-      shadowRadius: 4,
     },
     noteTitle: {
       textAlign: 'center',
@@ -321,7 +376,7 @@ const getThemedStyles = (theme: 'light' | 'dark') =>
       textAlign: 'left',
     },
     dateText: {
-      paddingLeft:235,
+      paddingLeft: 235,
       fontSize: 12,
       marginTop: 5,
       color: theme === 'light' ? '#000' : '#999',
@@ -334,7 +389,6 @@ const getThemedStyles = (theme: 'light' | 'dark') =>
       marginLeft: 30,
       paddingHorizontal: 10,
       borderRadius: 50,
-      
     },
     emptyText: {
       textAlign: 'center',
@@ -349,6 +403,18 @@ const getThemedStyles = (theme: 'light' | 'dark') =>
       padding: 16,
       borderRadius: 50,
       elevation: 5,
+    },
+
+    SearchContainer: {
+      
+      flexDirection: 'row-reverse',
+      alignItems: 'center',
+      backgroundColor: theme === 'light' ? '#f0f0f0' : '#333',
+      borderRadius: 8,
+      paddingHorizontal:10,
+      margin: 10,
+      height: 40,
+      marginBottom:20,
     },
   });
 
